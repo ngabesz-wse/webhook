@@ -1,0 +1,150 @@
+version: '3.2'
+
+services:
+    db:
+        # keopx/mysql available tags: latest, 8.0, 5.7, 5.6, 5.5.
+        image: mysql
+        ports:
+          - "3306:3306"
+        volumes:
+          - ./data:/var/lib/mysql
+          ## Custom setup for MySQL
+          - ./docker/my.cnf:/etc/mysql/my.cnf
+        environment:
+          - MYSQL_ROOT_PASSWORD=root
+          - MYSQL_DATABASE=symfony
+          - MYSQL_USER=symfony
+          - MYSQL_PASSWORD=symfony
+        networks:
+          - app-network
+
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        ports:
+          - "8082:80"
+        links:
+          - db
+        environment:
+          - PMA_HOST=db
+        networks:
+          - app-network
+
+
+    rabbitmq:
+        image: rabbitmq:3.7-management
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        ports:
+            - "8083:15672"
+        networks:
+            - app-network
+
+    maxwell:
+        image: nebez/maxwell
+        volumes:
+            - ./docker/rabbit.conf:/rabbit.conf
+        links:
+            - db
+            - rabbitmq
+        depends_on:
+            - db
+            - rabbitmq
+        command: "bin/maxwell --config=/rabbit.conf"
+        environment:
+            MYSQL_USERNAME: root
+            MYSQL_PASSWORD: root
+            MYSQL_HOST: db
+            RABBIT_HOST: rabbitmq
+        networks:
+            - app-network
+
+    binlog-filter:
+        image: "node:latest"
+        user: "node"
+        working_dir: /home/node/app
+        environment:
+            - NODE_ENV=dev
+            - AMPQ_HOST=rabbitmq
+        volumes:
+            - ./app/binlog-filter:/home/node/app
+        ports:
+            - "8086:8081"
+        depends_on:
+            - maxwell
+        command: "npm run app"
+        links:
+            - rabbitmq
+        networks:
+            - app-network
+
+    subscription-filter:
+        image: "node:latest"
+        user: "node"
+        working_dir: /home/node/app
+        depends_on:
+            - rabbitmq
+            - maxwell
+        environment:
+            - NODE_ENV=dev
+            - AMPQ_HOST=rabbitmq
+            - API_USER=apiadmin
+            - API_PASSWORD=apiadmin
+            - API_HOST=webhook-api
+            - API_PORT=8081
+        volumes:
+            - ./app/subscription-filter:/home/node/app
+        expose:
+            - "8080"
+        ports:
+            - "8080:8081"
+        command: "npm run app"
+        links:
+            - rabbitmq
+            - webhook-api
+        networks:
+            - app-network
+
+    webhook-worker:
+        image: "node:latest"
+        user: "node"
+        working_dir: /home/node/app
+        environment:
+            - NODE_ENV=dev
+            - AMPQ_HOST=rabbitmq
+        volumes:
+            - ./app/webhook-worker:/home/node/app
+        ports:
+            - "8085:8081"
+        command: "npm run app"
+        links:
+            - rabbitmq
+        networks:
+            - app-network
+
+    webhook-api:
+        image: "node:latest"
+        user: "node"
+        working_dir: /home/node/app
+        environment:
+            - NODE_ENV=dev
+            - DB_HOST=db
+            - DB_USER=root
+            - DB_PASSWORD=root
+            - DB_DB=webhooks
+            - API_USER=apiadmin
+            - API_PASSWORD=apiadmin
+        volumes:
+            - ./app/webhook-api:/home/node/app
+        links:
+            - db
+        expose:
+            - "8087"
+        ports:
+            - "8087:8081"
+        command: "npm run app"
+        networks:
+            - app-network
+
+networks:
+  app-network:
+    driver: bridge

@@ -1,0 +1,21 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "app": "npm install && node index.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.13.3",
+    "amqp": "*",
+    "curl-request": "*",
+    "redis": "*",
+    "mysql": "*",
+    "express-basic-auth": "*",
+    "method-override": "*",
+    "request-promise": "*"
+  }
+}

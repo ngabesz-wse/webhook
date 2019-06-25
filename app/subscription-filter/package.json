@@ -1,0 +1,16 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "app": "npm install && node index.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "amqp": "*",
+    "request": "*",
+    "request-promise": "*"
+  }
+}
